@@ -180,3 +180,4 @@ resource_generation/12_ARGs_fARGene/sr_contigs/lr_clustering_vs_sr_clustering.ts
 resource_generation/12_ARGs_fARGene/sr_contigs/cluster_membership_sr.tsv
 resource_generation/12_ARGs_fARGene/sr_contigs/cluster95-orfs-amino-nonredundant-lr_lengths.tsv
 resource_generation/12_ARGs_fARGene/long_orfs_nonredundant_vs_short_merged_orfs.tsv
+analysis/supp9/sr_lr.R
