@@ -28,8 +28,10 @@ svg("supp9/incremental_curve.svg", width = 10, height = 8)
 g
 dev.off()
 
+
 pdf("supp9/incremental_curve.pdf", width = 10, height = 8)
 g
 dev.off()
+
 
 data.frame(summary_df[summary_df$j<60 & (!summary_df$habitat  %in% c("freshwater","marine")),])
