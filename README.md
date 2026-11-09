@@ -11,7 +11,7 @@ This repository contains files and scripts to generate analysis and figures for 
 > bioRxiv 2026.03.20.713087; [doi:10.64898/2026.03.20.713087](https://doi.org/10.64898/2026.03.20.713087)
 
 See also the **MAG collection** at the [Urban soil MAG collection
-website](https://urban-soil-mags.netlify.app/).
+website](https://urban-soil-mags.big-data-biology.org).
 
 ## Structure
 
