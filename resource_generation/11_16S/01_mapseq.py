@@ -40,7 +40,7 @@ def reorganize_results(results):
         assert st == 200, f"Error {st} from Microbe Atlas server"
         otus = r['otutable']['otus']
         if len(otus) == 0:
-            otus = 'NA'
+            otu = 'NA'
         elif len(otus) == 1:
             [otu] = otus
         else:

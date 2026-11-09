@@ -1,2 +1,2 @@
 # Resource generation scripts
-The folder contains scripts to generate MAG resourece from the raw data. Running it requires access to the original data (which is publicly available, but very large) and a large amount of computational resources. They are provided for transparency and reproducibility, but we recommend that most users use the pre-generated resources available on Zenodo.
+The folder contains scripts to generate the MAG resource from the raw data. Running it requires access to the original data (which is publicly available, but very large) and a large amount of computational resources. They are provided for transparency and reproducibility, but we recommend that most users use the pre-generated resources available on Zenodo.

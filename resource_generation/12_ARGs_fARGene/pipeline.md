@@ -122,7 +122,7 @@ done
 ```bash
 conda activate seqkit
 seqkit rename -n predicted-orfs.fasta -o predicted-orfs-nonredundant.fasta
-rename -n predicted-orfs-amino.fasta -o predicted-orfs-amino-nonredundant.fasta
+seqkit rename -n predicted-orfs-amino.fasta -o predicted-orfs-amino-nonredundant.fasta
 seqkit rename -n filter-contigs.fasta -o filter-contigs-nonredundant.fasta
 seqkit rename -n filter-contigs-amino.fasta -o filter-contigs-amino-nonredundant.fasta
 
@@ -178,7 +178,7 @@ awk -F"\t" '{print $1 "\t" $2 "\t" $3  "\t" $4 "\t" $6 }' results/ResFinder_resu
 ```
 
 
-### Running ResFinder on fARGene results 
+### Running eggNOG-mapper on fARGene results
 ```bash
 cd eggnog_orfs_amino
 conda activate eggnog_out

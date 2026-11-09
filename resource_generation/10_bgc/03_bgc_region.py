@@ -19,7 +19,7 @@ for i in range(8,10):
 
             genbank = SeqIO.parse(file_path,format = "genbank")
 
-            # get informations for regions and protoclusters annotated by antiSMASH
+            # get information for regions and protoclusters annotated by antiSMASH
             for record in genbank:
 
                 # get information from regions annotated by antiSMASH

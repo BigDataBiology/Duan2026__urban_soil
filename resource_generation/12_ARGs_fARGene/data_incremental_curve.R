@@ -54,7 +54,7 @@ args_abundances_sb <- args_abundances_sb %>% mutate(rarified_count = ifelse(is.n
 
 
 
-# Precompute once: for each sample, its set of ARGs (total, and rarified-only)
+# Precompute once: for each sample, its set of ARGs (total, and rarefied-only)
 per_sample <- lapply(split(args_abundances_sb, args_abundances_sb$sample), function(d) {
   list(all = unique(d$X), rar = unique(d$X[d$rarified_count > 0]), habitat = d$habitat[1])
 })
