@@ -17,6 +17,7 @@ import pandas as pd
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+plt.rcParams['svg.fonttype'] = 'none'  # keep text editable in the SVG
 from shapely.affinity import affine_transform
 from shapely.geometry import LineString, Point, Polygon, box
 from shapely.ops import linemerge, nearest_points, unary_union
@@ -45,6 +46,8 @@ SH_FILL = '#eacb78'
 PUDONG = '#e4aa01'
 OUTLINE = '#262626'
 DOTTED = '#3c3c3c'
+GRID = '#b4b4b4'
+GRID_LABEL = '#555555'
 
 NANJING_CODE = '320100'
 PUDONG_CODE = '310115'
@@ -124,7 +127,34 @@ def load():
     clip = box(-1.5, -1.5, W_MM + 1.5, H_MM + 1.5)
     bg_fill = bg_fill.clip(clip)
     bg_lines = bg_lines.clip(clip)
-    return jiangsu, shanghai, bg_fill, bg_lines
+    return jiangsu, shanghai, bg_fill, bg_lines, mat
+
+
+def graticule(mat, step):
+    """Meridians and parallels every `step` degrees that fall on the canvas.
+
+    In Web Mercator these are straight vertical/horizontal lines, so each is
+    returned as a single canvas coordinate: ([(lon, x_mm)], [(lat, y_mm)]).
+    """
+    from math import ceil, floor
+    corners = gpd.GeoSeries(
+        [Point(affine_inverse(mat, 0, 0)), Point(affine_inverse(mat, W_MM, H_MM))],
+        crs=3857).to_crs(4326)
+    (lon0, lat0), (lon1, lat1) = [(p.x, p.y) for p in corners]
+    lons = [step * i for i in range(ceil(lon0 / step), floor(lon1 / step) + 1)]
+    lats = [step * i for i in range(ceil(lat0 / step), floor(lat1 / step) + 1)]
+    pts = gpd.GeoSeries([Point(lon, lats[0] if lats else lat0) for lon in lons]
+                        + [Point(lons[0] if lons else lon0, lat) for lat in lats],
+                        crs=4326).to_crs(3857)
+    pts = [affine_transform(p, mat) for p in pts]
+    return ([(lon, p.x) for lon, p in zip(lons, pts)],
+            [(lat, p.y) for lat, p in zip(lats, pts[len(lons):])])
+
+
+def affine_inverse(mat, x, y):
+    """Canvas mm -> EPSG:3857 metres (inverse of the diagonal `canvas_transform`)."""
+    a, _, _, e, xoff, yoff = mat
+    return (x - xoff) / a, (y - yoff) / e
 
 
 def stitch_background(neighbours, fg, tol=1.0):
@@ -167,11 +197,16 @@ STYLE = dict(
     sh_dot_lw=0.4,
     dot_on=1.5,         # dash pattern in units of the dotted line width
     dot_off=3.0,
+    grid_step=1,        # graticule spacing in degrees (None: no graticule)
+    grid_label_step=2,  # only lines at multiples of this (degrees) are labelled
+    grid_lw=0.15,
+    grid_fontsize=5,
+    grid_pad=0.6,       # label distance from the canvas edge and from its line (mm)
 )
 
 
 def draw(data, style=STYLE):
-    jiangsu, shanghai, bg_fill, bg_lines = data
+    jiangsu, shanghai, bg_fill, bg_lines, mat = data
     st = dict(STYLE, **style)
     fig = plt.figure(figsize=(W_MM / MM_PER_INCH, H_MM / MM_PER_INCH), dpi=DPI)
     ax = fig.add_axes([0, 0, 1, 1])
@@ -182,6 +217,17 @@ def draw(data, style=STYLE):
     # 1. grey background provinces
     bg_fill.plot(ax=ax, color=BG_LAND, linewidth=0)
     bg_lines.plot(ax=ax, color=BG_EDGE, linewidth=st['bg_lw'])
+
+    # 1b. graticule: drawn over the background and hidden by Jiangsu/Shanghai
+    # (same zorder as their fills, drawn earlier)
+    if st['grid_step']:
+        lons, lats = graticule(mat, st['grid_step'])
+        for lon, x in lons:
+            ax.axvline(x, color=GRID, linewidth=st['grid_lw'], zorder=1)
+        for lat, y in lats:
+            ax.axhline(y, color=GRID, linewidth=st['grid_lw'], zorder=1)
+        fg = merged(pd.concat([jiangsu, shanghai]))
+        label_graticule(ax, lons, lats, fg, st)
 
     dots = (0, (st['dot_on'], st['dot_off']))
     # 2. Jiangsu: prefectures with dotted internal borders, solid outline
@@ -199,6 +245,44 @@ def draw(data, style=STYLE):
     gpd.GeoSeries([merged(shanghai)]).boundary.plot(
         ax=ax, color=OUTLINE, linewidth=st['sh_lw'], joinstyle='round', capstyle='round')
     return fig
+
+
+def label_graticule(ax, lons, lats, fg, st):
+    """Label meridians along the bottom edge and parallels along the right edge
+    (only those at multiples of `grid_label_step` degrees).
+
+    Each label is placed beside its line (longitudes: right of it, else left;
+    latitudes: above it, else below). A label that would run off the canvas,
+    overlap Jiangsu/Shanghai (`fg`, canvas mm) or overlap an earlier label is
+    tried at the next position and dropped if none fits.
+    """
+    pad, fs = st['grid_pad'], st['grid_fontsize']
+    renderer = ax.figure.canvas.get_renderer()
+    inv = ax.transData.inverted()
+    canvas = box(0, 0, W_MM, H_MM)
+    blocked = fg.buffer(0.3)
+
+    def place(text, candidates):
+        nonlocal blocked
+        for x, y, ha, va in candidates:
+            t = ax.text(x, y, text, fontsize=fs, color=GRID_LABEL, ha=ha, va=va, zorder=10)
+            (x0, y0), (x1, y1) = inv.transform(t.get_window_extent(renderer))
+            extent = box(x0, y0, x1, y1)
+            if canvas.contains(extent) and not extent.intersects(blocked):
+                blocked = blocked.union(extent.buffer(pad))
+                return
+            t.remove()
+
+    def labelled(values):
+        step = st['grid_label_step']
+        return [(v, c) for v, c in values if abs(v / step - round(v / step)) < 1e-9]
+
+    for lon, x in labelled(lons):
+        place(f'{lon:g}°E', [(x + pad, pad, 'left', 'bottom'),
+                             (x - pad, pad, 'right', 'bottom')])
+    for lat, y in labelled(lats):
+        place(f'{lat:g}°N', [(W_MM - pad, y + pad, 'right', 'bottom'),
+                             (W_MM - pad, y - pad, 'right', 'top')])
 
 
 def main():
