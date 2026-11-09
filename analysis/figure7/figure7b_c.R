@@ -14,7 +14,23 @@ library(ggforce)
 library(ggpmisc)
 library(Cairo)
 
-setwd("~/Documents/GitHub/urban_soil/analysis/")
+script_arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+script_file <- if (length(script_arg)) sub("^--file=", "", script_arg[1]) else NULL
+if (is.null(script_file)) {
+  script_file <- tryCatch(sys.frame(1)$ofile, error = function(e) NULL)
+}
+analysis_candidates <- c(
+  if (!is.null(script_file)) file.path(dirname(script_file), ".."),
+  "analysis", ".", ".."
+)
+valid_analysis <- vapply(analysis_candidates, function(path) {
+  dir.exists(file.path(path, "figure7")) &&
+    dir.exists(file.path(path, "pre-calculated_data")) &&
+    dir.exists(file.path(path, "..", "resource_generation"))
+}, logical(1))
+if (!any(valid_analysis)) stop("Could not locate the repository analysis directory")
+setwd(normalizePath(analysis_candidates[which(valid_analysis)[1]]))
+dir.create("figure7", showWarnings = FALSE)
 
 gene_classes <- data.frame(rbind(
   c("aac2p",	"aminoglycoside acetyltransferase",	"aac(2')", "aminoglycoside"),
@@ -311,140 +327,31 @@ p_circle1 <- ggplot(count_locations, aes(x = "", y = p, fill = gr2)) +
     legend.background = element_blank())
 
 
-genes_per_sample <- genes %>% 
-  group_by(City, Location, sample) %>% 
-  summarise(n = n_distinct(centroid)) 
+# Shared input for Fig. 7a; the notebook owns its plot and whisker definition.
+table_plot <- genes %>%
+  group_by(City, Location, sample) %>%
+  summarise(n = n_distinct(centroid), .groups = "drop")
 
-wilcox.test(genes_per_sample$n[genes_per_sample$City == "Nanjing"],
-            genes_per_sample$n[genes_per_sample$City != "Nanjing"], "two.sided", paired = F)
+write.csv(table_plot, "pre-calculated_data/number_ARGs_per_sample.csv", row.names = FALSE)
 
-
-genes_per_city <- genes %>% group_by(City) %>% summarise(n = n_distinct(centroid)) %>% 
-  mutate(City = paste(" ", City)) 
-
-qantiles <- genes %>% 
-  group_by(City, Location, sample) %>% 
-  summarise(n = n_distinct(centroid)) %>%
-  ungroup() %>% 
-  group_by(City) %>% 
-  summarise(q25 = quantile(n, 0.25), q75 = quantile(n, 0.75))
-
-
-perc_5_95 <- function(x) {
-  stats <- quantile(x, probs = c(0.05, 0.25, 0.5, 0.75, 0.95))
-  names(stats) <- c("ymin", "lower", "middle", "upper", "ymax")
-  return(stats)
-}
-
-nsamples <- genes %>% 
-  group_by(City) %>% 
-  summarise(n = n_distinct(sample))
-
-max_n <- max(genes %>% 
-               group_by(City, Location, sample) %>% 
-               summarise(n = n_distinct(centroid)) %>% 
-               ungroup() %>% 
-               pull(n))
-
-table_plot <- genes %>% 
-  group_by(City, Location, sample) %>% 
-  summarise(n = n_distinct(centroid))
-
-
-write.csv( table_plot, "figure6/number_ARGs_per_sample.csv")
-
-box2 <- genes %>% 
-  group_by(City, Location, sample) %>% 
-  summarise(n = n_distinct(centroid)) %>% 
-  ggplot(aes(x = City, y = n, fill = City)) +
-  stat_summary(fun.data = perc_5_95, geom = "boxplot", show.legend = F, width = 0.7) +
-  scale_y_continuous(labels = label_comma()) +
-  geom_text(data = nsamples, aes(x = City, y = max_n+20, label = paste0("n = ",n)), 
-            size = general_size / ggplot2::.pt, vjust = 0, hjust = 0.5) +
-  geom_jitter(color = "black", height = 0, width = 0.3, show.legend = F) + 
-  xlab("") + 
-  scale_fill_manual(values = pal_8[c(1,2,1,2)], labels = function(x) gsub(" ", "\n", x))  +
-  theme_minimal() + 
-  ylab("ARGs per sample") + 
-  theme(
-    legend.position = "bottom",
-    axis.text.x.top = element_blank(),
-    strip.text = element_text(size = general_size, face = "bold", color = "black"),
-    legend.text = element_text(size = general_size),
-    title = element_text(size = general_size + 2, face = "bold"),
-    axis.title = element_text(size = general_size , color = "black", face = "bold"),
-    axis.text.x = element_blank(),
-    axis.text.y = element_text(size = general_size, color = "black"),
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor.x = element_blank(),
-    panel.grid.minor.y = element_blank(),
-    plot.background = element_blank(),
-    panel.background = element_blank(),
-    legend.background = element_blank())
-
-box2
-
-ggsave("figure6/6_b.svg", p_circle1 +
+# Fig. 7b: sharing of ARG centroids across samples, locations and cities.
+ggsave("figure7/7_b.svg", p_circle1 +
          theme(plot.margin = margin(0, 0, 0, 0), 
                panel.spacing = unit(5, "mm")) +
          ggtitle("B"), 
        width = 90, height = 100, unit = "mm")
 
 
-# dev.off()
-# CairoSVG("figure6/6_B.svg", 
-#        width = 90/25.4, height = 100/25.4)
-# print(  p_circle1 +
-#           theme(plot.margin = margin(0, 0, 0, 0), 
-#                 panel.spacing = unit(5, "mm")))
-# dev.off()
-
-ggsave("figure6/6_a.svg", box2 + 
-         theme(axis.text.x = element_blank(),
-               plot.margin = margin(0, 0, 0, 0), 
-               panel.spacing = unit(5, "mm")) +
-         ggtitle("A"), 
-       width = 70, height = 100, unit = "mm")
-
-
-
-dev.off()
-svg("figure6/6_c.svg", width = 70/25.4, height = 100/25.4)
-draw(draw(pheat11, heatmap_legend_side = "bottom", merge_legend = TRUE))
+# Fig. 7c: pairwise Jaccard similarity.
+svg("figure7/7_c.svg", width = 70/25.4, height = 100/25.4)
+draw(pheat11, heatmap_legend_side = "bottom", merge_legend = TRUE)
 grid.text("C", x = 0.5, y = unit(1, "npc") + unit(2, "mm"), gp = gpar(fontsize=general_size + 2))
 dev.off()
 
 
 
 
-heatmap_grob <- grid.grabExpr(draw(pheat11, heatmap_legend_side = "bottom", merge_legend = TRUE))
-
-heatmap_grob <- arrangeGrob(
-  heatmap_grob,
-  #top = textGrob("C", just = "left", gp = gpar(fontsize = general_size + 2, color = "black", fontface = "bold")),
-  padding = unit(c(0, 0, 0, 0), "mm")
-)
-
-
-
-grid.arrange(box2 + 
-               theme(axis.text.x = element_blank(),
-                     plot.margin = margin(0, 0, 0, 0), 
-                     panel.spacing = unit(5, "mm")) +
-               ggtitle("A"),
-             p_circle1 +
-               theme(plot.margin = margin(0, 0, 0, 0), 
-                     panel.spacing = unit(5, "mm")) +
-               ggtitle("B"),
-             heatmap_grob, 
-             nrow = 1)
-
-
-##########################################################################################
-##########################################################################################
-##########################################################################################
-
-
+# Auxiliary analyses below do not draw Fig. 7a.
 per_sample_centroids <- lapply(split(genes$centroid, genes$sample), unique)
 all_samples <- names(per_sample_centroids)
 n <- length(all_samples)
@@ -469,7 +376,7 @@ ggplot(summary_genes, aes(x = j, y = mean_tot)) +
   labs(x = "Number of samples (j)", y = "Unique centroids") +
   theme_minimal()
 
-write.csv(results_genes %>% mutate(dataset = "UrbanSoil"), file = "~/Documents/GitHub/urban_soil/resource_generation/12_ARGs_fARGene/incremental_curve_soil.csv", row.names = F)
+write.csv(results_genes %>% mutate(dataset = "UrbanSoil"), file = "../resource_generation/12_ARGs_fARGene/incremental_curve_soil.csv", row.names = F)
 
 ########
 
@@ -522,10 +429,10 @@ pcoa_plot <- ggplot(pcoa_df, aes(PCo1, PCo2, color = City, shape = Location)) +
        title = "PCoA (Jaccard)") +
   theme_minimal()
 
-ggsave("figure6/pcoa_args.svg", pcoa_plot +
+ggsave("figure7/pcoa_args.svg", pcoa_plot +
          theme(plot.margin = margin(0, 0, 0, 0), 
                panel.spacing = unit(5, "mm")),
        width = 140, height = 100, unit = "mm")
 
 
-write.csv( pcoa_df, "figure6/PCoA_ARGs.csv")
+write.csv( pcoa_df, "figure7/PCoA_ARGs.csv")

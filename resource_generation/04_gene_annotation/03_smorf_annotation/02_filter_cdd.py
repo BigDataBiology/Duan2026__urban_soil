@@ -40,11 +40,8 @@ def cal(infile,outfile):
     df = result.smorf.value_counts()
     bg_count = df.shape[0]
     bg_multi_count = df[df>1].shape[0]
-    bg_perc = bg_count/2206902
-    bg_multi_perc = bg_multi_count/2206902
-
-    print(f'{bg_perc}({bg_count}/2206902) of 90AA smORFs are annotated with CDD.')
-    print(f'{bg_multi_perc}({bg_multi_count}/2206902) of 90AA smORFs are annotated with multiple CDD.')
+    bg_perc = bg_count/2206901
+    bg_multi_perc = bg_multi_count/2206901
 
     bg_cdd_count = result.cdd.value_counts()
     bg_cdd_count = bg_cdd_count.to_frame(name='bg_count').reset_index().rename(columns={'index':'cdd'})
