@@ -89,6 +89,7 @@ GROUPS = {
 GROUP_ORDER = list(GROUPS)
 COMPARISONS = [("Urban soil", "Smag"), ("Smag", "Dog"), ("Urban soil", "Dog")]
 
+per_sample_means = {}
 for metric in METRICS:
     fig, axes = plt.subplots(1, len(AGGREGATIONS), figsize=(10, 4), sharey=True)
     data = []
@@ -145,7 +146,8 @@ for metric in METRICS:
 
     data = pl.concat(data)
     data = data.pivot(index="sample", on="Aggregation", values=metric).sort("sample")
-    data.write_csv(f"results/{metric.lower()}.tsv", separator="\t")
+    data.write_csv(f"results/{metric.lower()}.tsv", separator="\t", float_precision=8)
+    per_sample_means[metric] = data.select("sample", pl.col("mean").alias(metric))
 
     print(
         f"\n# Spearman correlation between different aggregation methods for {metric}\n"
@@ -157,6 +159,15 @@ for metric in METRICS:
                 print(
                     f"{col}\t{col2}\t{stats.spearmanr(data[col], data[col2]).statistic:.4f}"
                 )
+
+
+# Combined table (per-sample mean across genes) used by analysis/figure1/figure1.ipynb
+alpha_diversity = per_sample_means["Chao1"]
+for metric in ["Simpson", "Shannon"]:
+    alpha_diversity = alpha_diversity.join(per_sample_means[metric], on="sample")
+alpha_diversity.sort("sample").write_csv(
+    "alpha_diversity.tsv", separator="\t", float_precision=8
+)
 
 
 print("# Spot check computation")
